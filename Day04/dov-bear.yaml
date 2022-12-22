@@ -1,9 +1,9 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: dov-bear-po
+  name: dov-bear-deploy
   labels:
-    name: dov-bear-po
+    name: dov-bear-deploy
   namespace: myns
 spec:
   replicas: 3
@@ -36,18 +36,25 @@ spec:
           httpGet:
             path: /healthz
             port: 3000
+        resources:
+          requests:
+            memory: 32Mi
+            cpu: 100m
+          limits:
+            memory: 32Mi
+            cpu: 100m
 
 ---
 
 apiVersion: v1
 kind: Service
 metadata:
-  name: dov-bear-svc
+  name: dov-bear-hsvc
   labels:
-    name: dov-bear-svc
+    name: dov-bear-hsvc
   namespace: myns
 spec:
-  type: ClusterIP
+  clusterIP: None
   selector:
     name: dov-bear-po
   ports:
@@ -55,3 +62,38 @@ spec:
     targetPort: 3000
 
 ---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: dov-bear-hpa
+  labels:
+    name: dov-bear-hpa
+  namespace: myns
+spec:
+  minReplicas: 1
+  maxReplicas: 4
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: dov-bear-deploy
+  metrics:
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 60
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: 
+  name: deny-all
+  namespace: myns
+spec:
+  policyTypes:
+  - Ingress
+  - Egress 
+  podSelector:
+    matchLabels:
+      deny-all: "true"
